@@ -3,44 +3,67 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Instrux Helper</title>
+  <title>LazyTest AI</title>
   <link rel="stylesheet" href="sidepanel.css" />
 </head>
 <body>
-  <div class="container">
-    <h1>Instrux Helper</h1>
+  <div class="app">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">Assistant</div>
+        <h1>LazyTest AI</h1>
+      </div>
+      <div class="status-dot" id="statusDot"></div>
+    </header>
 
-    <div class="section">
-        <h2>Groq API Key</h2>
-        <input
+    <section class="card">
+      <div class="section-head">
+        <h2>API key</h2>
+      </div>
+
+      <input
         id="apiKey"
         type="password"
         placeholder="gsk_..."
         autocomplete="off"
-        />
-        <button id="saveApiKeyBtn" class="secondary">Сохранить API key</button>
-    </div>
+      />
 
-    <div class="actions">
-      <button id="sendPromptBtn" class="secondary">Отправить промт</button>
-    </div>
+      <button id="saveApiKeyBtn" class="btn btn-secondary">
+        Сохранить ключ
+      </button>
+    </section>
 
-    <div class="section">
-      <h2>Question</h2>
-      <pre id="question">Waiting...</pre>
-    </div>
+    <section class="actions">
+      <button id="sendPromptBtn" class="btn btn-primary">
+        Анализировать
+      </button>
+    </section>
 
-    <div class="section">
-      <h2>Options</h2>
-      <pre id="options">Waiting...</pre>
-    </div>
+    <section class="card">
+      <div class="section-head">
+        <h2>Question</h2>
+      </div>
+      <pre id="question" class="content-block">Waiting...</pre>
+    </section>
 
-    <div class="section">
-      <h2>Analysis</h2>
-      <pre id="analysis">No analysis yet</pre>
-    </div>
+    <section class="card">
+      <div class="section-head">
+        <h2>Options</h2>
+      </div>
+      <pre id="options" class="content-block">Waiting...</pre>
+    </section>
 
-    <div class="status" id="status">Ready</div>
+    <section class="card">
+      <div class="section-head">
+        <h2>Analysis</h2>
+      </div>
+      <pre id="analysis" class="content-block muted">No analysis yet</pre>
+    </section>
+
+    <footer class="footer-status">
+      <span class="status-label">Status</span>
+      <span id="status">Ready</span>
+    </footer>
   </div>
 
   <script src="sidepanel.js"></script>

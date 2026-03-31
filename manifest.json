@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Instrux QA Helper",
+  "name": "LazyTest AI",
   "version": "1.0.0",
-  "description": "Helper for analyzing questions on pages",
+  "description": "Helper for skipping tests",
   "permissions": ["activeTab", "scripting", "sidePanel", "storage"],
   "host_permissions": ["<all_urls>", "https://api.groq.com/*"],
   "action": {

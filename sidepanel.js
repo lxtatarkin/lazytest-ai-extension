@@ -174,6 +174,45 @@ function buildPrompt(data) {
 
 function setStatus(text) {
   document.getElementById("status").textContent = text;
+
+  const dot = document.getElementById("statusDot");
+  if (!dot) return;
+
+  const value = String(text || "").toLowerCase();
+
+  if (
+    value.includes("done") ||
+    value.includes("ready") ||
+    value.includes("updated") ||
+    value.includes("saved") ||
+    value.includes("loaded")
+  ) {
+    dot.style.background = "#22c55e";
+    dot.style.boxShadow = "0 0 0 4px rgba(34, 197, 94, 0.18)";
+    return;
+  }
+
+  if (
+    value.includes("failed") ||
+    value.includes("error") ||
+    value.includes("read failed")
+  ) {
+    dot.style.background = "#ef4444";
+    dot.style.boxShadow = "0 0 0 4px rgba(239, 68, 68, 0.18)";
+    return;
+  }
+
+  if (
+    value.includes("sending") ||
+    value.includes("loading")
+  ) {
+    dot.style.background = "#f59e0b";
+    dot.style.boxShadow = "0 0 0 4px rgba(245, 158, 11, 0.18)";
+    return;
+  }
+
+  dot.style.background = "#cbd5e1";
+  dot.style.boxShadow = "0 0 0 4px rgba(203, 213, 225, 0.22)";
 }
 
 function extractQuestionData() {
