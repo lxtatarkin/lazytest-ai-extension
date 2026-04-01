@@ -16,21 +16,35 @@
       <div class="status-dot" id="statusDot"></div>
     </header>
 
-    <section class="card">
+    <section class="card api-card">
       <div class="section-head">
-        <h2>API key</h2>
+        <h2>API Key</h2>
+        <p class="section-subtext">
+          Enter your Groq API key. You can create one at
+          <a href="https://console.groq.com" target="_blank" rel="noreferrer">
+            console.groq.com
+          </a>
+        </p>
       </div>
 
-      <input
-        id="apiKey"
-        type="password"
-        placeholder="gsk_..."
-        autocomplete="off"
-      />
+      <div class="field-group">
+        <input
+          id="apiKey"
+          class="input"
+          type="password"
+          placeholder="gsk_..."
+          autocomplete="off"
+          spellcheck="false"
+        />
 
-      <button id="saveApiKeyBtn" class="btn btn-secondary">
-        Save Key
-      </button>
+        <button id="saveApiKeyBtn" class="btn btn-secondary btn-full">
+          Save Key
+        </button>
+      </div>
+
+      <div class="field-note" id="apiKeyNote">
+        Stored locally in your browser
+      </div>
     </section>
 
     <section class="actions">

@@ -7,32 +7,86 @@ let lastHash = "";
 let autoRefreshTimer = null;
 let isReading = false;
 
-document.getElementById("sendPromptBtn").addEventListener("click", sendPromptToGroq);
-document.getElementById("saveApiKeyBtn").addEventListener("click", saveApiKey);
+const sendPromptBtn = document.getElementById("sendPromptBtn");
+const saveApiKeyBtn = document.getElementById("saveApiKeyBtn");
+const apiKeyInput = document.getElementById("apiKey");
+const apiKeyNote = document.getElementById("apiKeyNote");
+const analysisEl = document.getElementById("analysis");
+const questionEl = document.getElementById("question");
+const optionsEl = document.getElementById("options");
+
+sendPromptBtn.addEventListener("click", sendPromptToGroq);
+saveApiKeyBtn.addEventListener("click", saveApiKey);
 
 init();
 
 async function init() {
-  const saved = await chrome.storage.local.get(["groqApiKey"]);
-  if (saved.groqApiKey) {
-    document.getElementById("apiKey").value = saved.groqApiKey;
-  }
+  try {
+    const saved = await chrome.storage.local.get(["groqApiKey"]);
 
-  await readQuestion(true);
-  startAutoRefresh();
+    if (saved.groqApiKey) {
+      apiKeyInput.value = saved.groqApiKey;
+      apiKeyNote.textContent = "API key saved (stored locally in your browser)";
+    } else {
+      apiKeyNote.textContent = "Stored locally in your browser";
+    }
+
+    updateSendButtonState();
+
+    await readQuestion(true);
+    startAutoRefresh();
+  } catch (error) {
+    console.error("Init error:", error);
+    apiKeyNote.textContent = "Storage read failed";
+    setStatus("Init failed");
+  }
 }
 
 async function saveApiKey() {
-  const apiKey = document.getElementById("apiKey").value.trim();
+  const apiKey = apiKeyInput.value.trim();
 
   if (!apiKey) {
-    setStatus("Введи API key");
+    apiKeyNote.textContent = "Please enter your API key first";
+    setStatus("API key required");
+    apiKeyInput.focus();
+    apiKeyInput.style.borderColor = "#ef4444";
     return;
   }
 
-  await chrome.storage.local.set({ groqApiKey: apiKey });
-  setStatus("API key saved");
+  try {
+    saveApiKeyBtn.disabled = true;
+    saveApiKeyBtn.textContent = "Saving...";
+    apiKeyNote.textContent = "Saving key...";
+    apiKeyInput.style.borderColor = "";
+
+    await chrome.storage.local.set({ groqApiKey: apiKey });
+
+    apiKeyNote.textContent = "API key saved (stored locally in your browser)";
+    setStatus("API key saved");
+    updateSendButtonState();
+  } catch (error) {
+    console.error("Save key error:", error);
+    apiKeyNote.textContent = "Failed to save key";
+    setStatus("Save failed");
+  } finally {
+    saveApiKeyBtn.disabled = false;
+    saveApiKeyBtn.textContent = "Save Key";
+  }
 }
+
+function updateSendButtonState() {
+  sendPromptBtn.disabled = false;
+}
+
+apiKeyInput.addEventListener("input", () => {
+  apiKeyInput.style.borderColor = "";
+
+  apiKeyNote.textContent = apiKeyInput.value.trim()
+    ? "Key not saved yet"
+    : "Stored locally in your browser";
+
+  updateSendButtonState();
+});
 
 function startAutoRefresh() {
   if (autoRefreshTimer) {
@@ -82,19 +136,17 @@ async function readQuestion(forceRender = false) {
     renderData(latestData);
     setStatus(forceRender ? "Question loaded" : "Updated");
   } catch (error) {
+    console.error("Read question error:", error);
     setStatus("Read failed");
   } finally {
     isReading = false;
   }
 }
 
-// ОБНОВЛЕННАЯ ФУНКЦИЯ: Теперь создает элементы для каждого варианта
 function renderData(data) {
-  document.getElementById("question").textContent =
-    data.question || "Question not found";
+  questionEl.textContent = data.question || "Question not found";
 
-  const optionsContainer = document.getElementById("options");
-  optionsContainer.innerHTML = ""; // Очищаем контейнер
+  optionsEl.innerHTML = "";
 
   if (data.options.length) {
     data.options.forEach((item, index) => {
@@ -106,33 +158,34 @@ function renderData(data) {
       div.style.borderRadius = "4px";
       div.style.transition = "background-color 0.3s";
       div.textContent = `${index + 1}. ${item}`;
-      optionsContainer.appendChild(div);
+      optionsEl.appendChild(div);
     });
   } else {
-    optionsContainer.textContent = "Options not found";
+    optionsEl.textContent = "Options not found";
   }
-  
-  // Сбрасываем старый анализ при загрузке нового вопроса
-  document.getElementById("analysis").textContent = "No analysis yet";
+
+  analysisEl.textContent = "No analysis yet";
 }
 
 async function sendPromptToGroq() {
-  const apiKeyInput = document.getElementById("apiKey").value.trim();
+  const apiKeyInputValue = apiKeyInput.value.trim();
 
-  if (!apiKeyInput) {
-    setStatus("Сначала введи API key");
+  if (!apiKeyInputValue) {
+    apiKeyNote.textContent = "Please enter your API key first";
+    setStatus("API key required");
+    apiKeyInput.focus();
+    apiKeyInput.style.borderColor = "#ef4444";
     return;
   }
 
   if (!latestData.question && !latestData.options.length) {
-    setStatus("Нет данных вопроса");
+    setStatus("No question data");
     return;
   }
 
   setStatus("Sending...");
-  document.getElementById("analysis").textContent = "Loading...";
-  
-  // Сбрасываем подсветку перед новым запросом
+  analysisEl.textContent = "Loading...";
+
   resetHighlights();
 
   const prompt = buildPrompt(latestData);
@@ -142,14 +195,14 @@ async function sendPromptToGroq() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKeyInput}`
+        "Authorization": `Bearer ${apiKeyInputValue}`
       },
       body: JSON.stringify({
         model: "llama-3.3-70b-versatile",
         messages: [
           {
             role: "system",
-            content: "Ты помощник по тестам. Твоя задача: найти правильный ответ. В начале ответа ВСЕГДА пиши только цифру правильного варианта, а затем краткое пояснение."
+            content: "You are a quiz assistant. Your task is to find the correct answer. ALWAYS write only the number of the correct option at the beginning of your response, followed by a brief explanation."
           },
           {
             role: "user",
@@ -161,31 +214,31 @@ async function sendPromptToGroq() {
     });
 
     const data = await response.json();
-    if (!response.ok) throw new Error(data?.error?.message || "API error");
+    if (!response.ok) {
+      throw new Error(data?.error?.message || "API error");
+    }
 
     const text = data?.choices?.[0]?.message?.content || "";
-    document.getElementById("analysis").textContent = text;
-    
-    // Выделяем правильный ответ
+    analysisEl.textContent = text;
+
     highlightCorrectOption(text);
-    
+
     setStatus("Done");
   } catch (error) {
-    document.getElementById("analysis").textContent = `API error: ${error.message}`;
+    console.error("Groq request error:", error);
+    analysisEl.textContent = `API error: ${error.message}`;
     setStatus("API failed");
   }
 }
 
-// НОВАЯ ФУНКЦИЯ: Ищет цифру в ответе и красит соответствующий блок
 function highlightCorrectOption(aiText) {
-  // Ищем первую попавшуюся цифру от 1 до 6 в начале или первой строке текста
   const match = aiText.match(/\b([1-6])\b/);
   if (match) {
     const optionNumber = match[1];
     const element = document.getElementById(`option-${optionNumber}`);
     if (element) {
-      element.style.backgroundColor = "#dcfce7"; // Светло-зеленый
-      element.style.borderLeft = "4px solid #22c55e"; // Зеленая полоска слева
+      element.style.backgroundColor = "#dcfce7";
+      element.style.borderLeft = "4px solid #22c55e";
       element.style.fontWeight = "bold";
     }
   }
@@ -193,7 +246,7 @@ function highlightCorrectOption(aiText) {
 
 function resetHighlights() {
   const items = document.querySelectorAll(".option-item");
-  items.forEach(el => {
+  items.forEach((el) => {
     el.style.backgroundColor = "transparent";
     el.style.borderLeft = "none";
     el.style.fontWeight = "normal";
@@ -205,8 +258,8 @@ function buildPrompt(data) {
   const options = Array.isArray(data.options) ? data.options : [];
 
   return [
-    "Проанализируй вопрос и варианты ответа.",
-    "Выбери правильный ответ.",
+    "Analyze the question and answer options.",
+    "Choose the correct answer.",
     "",
     "QUESTION:",
     question,
@@ -216,29 +269,41 @@ function buildPrompt(data) {
   ].join("\n");
 }
 
-// ... (остальные функции setStatus и extractQuestionData остаются без изменений)
-
 function setStatus(text) {
   document.getElementById("status").textContent = text;
   const dot = document.getElementById("statusDot");
   if (!dot) return;
+
   const value = String(text || "").toLowerCase();
 
-  if (value.includes("done") || value.includes("ready") || value.includes("updated") || value.includes("saved") || value.includes("loaded")) {
+  if (
+    value.includes("done") ||
+    value.includes("ready") ||
+    value.includes("updated") ||
+    value.includes("saved") ||
+    value.includes("loaded")
+  ) {
     dot.style.background = "#22c55e";
     dot.style.boxShadow = "0 0 0 4px rgba(34, 197, 94, 0.18)";
     return;
   }
-  if (value.includes("failed") || value.includes("error") || value.includes("read failed")) {
+
+  if (
+    value.includes("failed") ||
+    value.includes("error") ||
+    value.includes("read failed")
+  ) {
     dot.style.background = "#ef4444";
     dot.style.boxShadow = "0 0 0 4px rgba(239, 68, 68, 0.18)";
     return;
   }
+
   if (value.includes("sending") || value.includes("loading")) {
     dot.style.background = "#f59e0b";
     dot.style.boxShadow = "0 0 0 4px rgba(245, 158, 11, 0.18)";
     return;
   }
+
   dot.style.background = "#cbd5e1";
   dot.style.boxShadow = "0 0 0 4px rgba(203, 213, 225, 0.22)";
 }
@@ -252,7 +317,13 @@ function extractQuestionData() {
     if (!el) return false;
     const style = window.getComputedStyle(el);
     const rect = el.getBoundingClientRect();
-    return (style.display !== "none" && style.visibility !== "hidden" && style.opacity !== "0" && rect.width > 0 && rect.height > 0);
+    return (
+      style.display !== "none" &&
+      style.visibility !== "hidden" &&
+      style.opacity !== "0" &&
+      rect.width > 0 &&
+      rect.height > 0
+    );
   }
 
   function isInsideViewportArea(rect) {
@@ -263,11 +334,21 @@ function extractQuestionData() {
     const t = clean(text).toLowerCase();
     if (!t) return true;
     return (
-      t.includes("instrux helper") || t.includes("groq api key") || t.includes("сохранить api key") ||
-      t.includes("отправить промт") || t.includes("no analysis yet") || t.includes("question loaded") ||
-      t.includes("updated") || t.includes("materials") || t.includes("материалы курса") ||
-      t.includes("запустить задание") || t.includes("why choose this course") || t.includes("students") ||
-      t.includes("reviews") || t.includes("step-by-step guide") || t.includes("последнее обновление")
+      t.includes("instrux helper") ||
+      t.includes("groq api key") ||
+      t.includes("save api key") ||
+      t.includes("send prompt") ||
+      t.includes("no analysis yet") ||
+      t.includes("question loaded") ||
+      t.includes("updated") ||
+      t.includes("materials") ||
+      t.includes("course materials") ||
+      t.includes("start assignment") ||
+      t.includes("why choose this course") ||
+      t.includes("students") ||
+      t.includes("reviews") ||
+      t.includes("step-by-step guide") ||
+      t.includes("last updated")
     );
   }
 
@@ -289,96 +370,172 @@ function extractQuestionData() {
 
   function collectOptionCandidates() {
     const leftBoundary = getLeftContentBoundary();
-    const allTexts = Array.from(document.querySelectorAll("body *")).filter(isVisible).map((el) => clean(el.innerText)).filter((t) => t.length > 0);
+    const allTexts = Array.from(document.querySelectorAll("body *"))
+      .filter(isVisible)
+      .map((el) => clean(el.innerText))
+      .filter((t) => t.length > 0);
+
     const trueFalse = allTexts.filter((t) => {
       const x = t.toLowerCase();
       return x === "true" || x === "true." || x === "false" || x === "false.";
     });
+
     if (trueFalse.length >= 2) return [...new Set(trueFalse)].slice(0, 2);
 
-    const radioBlocks = Array.from(document.querySelectorAll("[role='radio'], label")).filter(isVisible).map((el) => {
-      return { text: clean(el.innerText), rect: el.getBoundingClientRect() };
-    }).filter((item) => {
-      if (!item.text || item.text.length < 3 || item.text.length > 160) return false;
-      if (item.rect.left > leftBoundary || !isInsideViewportArea(item.rect)) return false;
-      return true;
-    });
+    const radioBlocks = Array.from(document.querySelectorAll("[role='radio'], label"))
+      .filter(isVisible)
+      .map((el) => {
+        return { text: clean(el.innerText), rect: el.getBoundingClientRect() };
+      })
+      .filter((item) => {
+        if (!item.text || item.text.length < 3 || item.text.length > 160) return false;
+        if (item.rect.left > leftBoundary || !isInsideViewportArea(item.rect)) return false;
+        return true;
+      });
 
     if (radioBlocks.length) {
       const unique = [];
       const seen = new Set();
       for (const item of radioBlocks) {
         const key = item.text.toLowerCase();
-        if (!seen.has(key)) { seen.add(key); unique.push(item.text); }
+        if (!seen.has(key)) {
+          seen.add(key);
+          unique.push(item.text);
+        }
       }
       return unique.slice(0, 6);
     }
 
-    const fallback = Array.from(document.querySelectorAll("div")).filter(isVisible).map((el) => {
-      return { text: clean(el.innerText), rect: el.getBoundingClientRect() };
-    }).filter((item) => {
-      const t = item.text.toLowerCase();
-      if (!item.text || item.text.length < 10 || item.text.length > 120) return false;
-      if (item.rect.left > leftBoundary || !isInsideViewportArea(item.rect)) return false;
-      if (t.includes("udemy") || t.includes("progress") || t.includes("курс") || t.includes("раздел") || t.includes("materials") || t.includes("cookie") || item.text.includes("?")) return false;
-      return true;
-    });
+    const fallback = Array.from(document.querySelectorAll("div"))
+      .filter(isVisible)
+      .map((el) => {
+        return { text: clean(el.innerText), rect: el.getBoundingClientRect() };
+      })
+      .filter((item) => {
+        const t = item.text.toLowerCase();
+        if (!item.text || item.text.length < 10 || item.text.length > 120) return false;
+        if (item.rect.left > leftBoundary || !isInsideViewportArea(item.rect)) return false;
+        if (
+          t.includes("udemy") ||
+          t.includes("progress") ||
+          t.includes("course") ||
+          t.includes("section") ||
+          t.includes("materials") ||
+          t.includes("cookie") ||
+          item.text.includes("?")
+        ) {
+          return false;
+        }
+        return true;
+      });
 
     const unique = [];
     const seen = new Set();
     for (const item of fallback) {
       const key = item.text.toLowerCase();
-      if (!seen.has(key)) { seen.add(key); unique.push(item.text); }
+      if (!seen.has(key)) {
+        seen.add(key);
+        unique.push(item.text);
+      }
     }
     return unique.slice(0, 6);
   }
 
   function collectQuestionCandidates() {
     const leftBoundary = getLeftContentBoundary();
-    return Array.from(document.querySelectorAll("h1, h2, h3, h4, p, span, div")).filter(isVisible).map((el) => {
-      return { el, text: clean(el.innerText), rect: el.getBoundingClientRect() };
-    }).filter((item) => {
-      if (!item.text || item.text.length < 10 || item.text.length > 220) return false;
-      if (!isInsideViewportArea(item.rect) || item.rect.left > leftBoundary || item.rect.width < 120 || isBadText(item.text)) return false;
-      return true;
-    });
+    return Array.from(document.querySelectorAll("h1, h2, h3, h4, p, span, div"))
+      .filter(isVisible)
+      .map((el) => {
+        return { el, text: clean(el.innerText), rect: el.getBoundingClientRect() };
+      })
+      .filter((item) => {
+        if (!item.text || item.text.length < 10 || item.text.length > 220) return false;
+        if (
+          !isInsideViewportArea(item.rect) ||
+          item.rect.left > leftBoundary ||
+          item.rect.width < 120 ||
+          isBadText(item.text)
+        ) {
+          return false;
+        }
+        return true;
+      });
   }
 
   function findQuestionNearOptions(options) {
     const leftBoundary = getLeftContentBoundary();
     const questionCandidates = collectQuestionCandidates();
-    const optionNodes = Array.from(document.querySelectorAll("label, [role='radio'], div, li")).filter(isVisible).map((el) => ({
-      el, text: clean(el.innerText), rect: el.getBoundingClientRect()
-    })).filter((item) => {
-      if (!item.text || item.rect.left > leftBoundary || !isInsideViewportArea(item.rect)) return false;
-      return options.some((opt) => clean(opt) === item.text);
-    });
+    const optionNodes = Array.from(document.querySelectorAll("label, [role='radio'], div, li"))
+      .filter(isVisible)
+      .map((el) => ({
+        el,
+        text: clean(el.innerText),
+        rect: el.getBoundingClientRect()
+      }))
+      .filter((item) => {
+        if (!item.text || item.rect.left > leftBoundary || !isInsideViewportArea(item.rect)) {
+          return false;
+        }
+        return options.some((opt) => clean(opt) === item.text);
+      });
 
     if (!optionNodes.length) {
       const fallback = questionCandidates.find((item) => {
         const t = item.text.toLowerCase();
-        return (item.text.includes("?") || t.startsWith("which ") || t.startsWith("what ") || t.startsWith("when ") || t.startsWith("where ") || t.startsWith("why ") || t.startsWith("how "));
+        return (
+          item.text.includes("?") ||
+          t.startsWith("which ") ||
+          t.startsWith("what ") ||
+          t.startsWith("when ") ||
+          t.startsWith("where ") ||
+          t.startsWith("why ") ||
+          t.startsWith("how ")
+        );
       });
       return fallback ? fallback.text : "";
     }
 
     const topOfOptions = Math.min(...optionNodes.map((n) => n.rect.top));
-    const candidatesAbove = questionCandidates.filter((item) => {
-      if (item.rect.bottom > topOfOptions + 5 || topOfOptions - item.rect.bottom > 220) return false;
-      return true;
-    }).sort((a, b) => {
-      const aDistance = topOfOptions - a.rect.bottom;
-      const bDistance = topOfOptions - b.rect.bottom;
-      const aScore = (a.text.includes("?") ? 10 : 0) + (aDistance >= 0 && aDistance < 120 ? 5 : 0) + (a.text.length >= 20 ? 2 : 0);
-      const bScore = (b.text.includes("?") ? 10 : 0) + (bDistance >= 0 && bDistance < 120 ? 5 : 0) + (b.text.length >= 20 ? 2 : 0);
-      return bScore - aScore;
-    });
+
+    const candidatesAbove = questionCandidates
+      .filter((item) => {
+        if (item.rect.bottom > topOfOptions + 5 || topOfOptions - item.rect.bottom > 220) {
+          return false;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        const aDistance = topOfOptions - a.rect.bottom;
+        const bDistance = topOfOptions - b.rect.bottom;
+
+        const aScore =
+          (a.text.includes("?") ? 10 : 0) +
+          (aDistance >= 0 && aDistance < 120 ? 5 : 0) +
+          (a.text.length >= 20 ? 2 : 0);
+
+        const bScore =
+          (b.text.includes("?") ? 10 : 0) +
+          (bDistance >= 0 && bDistance < 120 ? 5 : 0) +
+          (b.text.length >= 20 ? 2 : 0);
+
+        return bScore - aScore;
+      });
 
     if (candidatesAbove.length) return candidatesAbove[0].text;
+
     const fallback = questionCandidates.find((item) => {
       const t = item.text.toLowerCase();
-      return (item.text.includes("?") || t.startsWith("which ") || t.startsWith("what ") || t.startsWith("when ") || t.startsWith("where ") || t.startsWith("why ") || t.startsWith("how "));
+      return (
+        item.text.includes("?") ||
+        t.startsWith("which ") ||
+        t.startsWith("what ") ||
+        t.startsWith("when ") ||
+        t.startsWith("where ") ||
+        t.startsWith("why ") ||
+        t.startsWith("how ")
+      );
     });
+
     return fallback ? fallback.text : "";
   }
 
