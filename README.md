@@ -27,8 +27,8 @@ LazyTest AI is a modern Chrome extension designed to turn tedious online assessm
 
 - [x] Question & Answer extraction
 - [x] Side Panel integration
-- [s] AI Logic fine-tuning (In progress)
-- [ ] Support for image-based questions
+- [x] AI Logic fine-tuning (In progress)
+- [s] Support for image-based questions
 
 > **Note:** This repository contains the **browser extension code only**. The AI processing logic and prompt engineering are handled via an external API to ensure fast and accurate responses.
 
